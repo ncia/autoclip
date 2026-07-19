@@ -29,6 +29,9 @@ class Clip(Base):
     source_video_id = Column(Integer, ForeignKey("source_videos.id"))
     output_path = Column(String)
     script_summary = Column(String, nullable=True)
+    youtube_status = Column(String, default="Pending")
+    tiktok_status = Column(String, default="Pending")
+    instagram_status = Column(String, default="Pending")
     created_at = Column(DateTime, default=datetime.utcnow)
 
     source = relationship("SourceVideo", back_populates="clips")

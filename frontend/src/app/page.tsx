@@ -1,9 +1,36 @@
-import React from 'react';
+'use client';
+
+import React, { useState } from 'react';
 import StatCard from '@/components/StatCard';
 import PipelineStatus from '@/components/PipelineStatus';
-import { Video, Clock, CheckCircle2, UploadCloud } from 'lucide-react';
+import { Video, Clock, CheckCircle, UploadCloud, Loader2 } from 'lucide-react';
 
 export default function Dashboard() {
+  const [url, setUrl] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeVideoIds, setActiveVideoIds] = useState<number[]>([]);
+
+  const handleProcessVideo = async () => {
+    if (!url) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch('http://localhost:8000/api/videos/process', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error('Failed to process video');
+      const data = await res.json();
+      setActiveVideoIds(prev => [data.video_id, ...prev]);
+      setUrl('');
+    } catch (error) {
+      console.error(error);
+      alert('Error processing video');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <main className="p-8 max-w-7xl mx-auto space-y-8">
       
@@ -36,7 +63,7 @@ export default function Dashboard() {
           title="Auto-Uploads Success" 
           value="98.5%" 
           subtitle="across 3 platforms" 
-          icon={<CheckCircle2 size={20} className="text-emerald-400" />} 
+          icon={<CheckCircle size={20} className="text-emerald-400" />} 
         />
         <StatCard 
           title="Time Saved" 
@@ -56,21 +83,33 @@ export default function Dashboard() {
             <input 
               type="text" 
               placeholder="https://www.youtube.com/watch?v=..." 
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
               className="flex-1 bg-[#09090b] border border-[#27272a] rounded-lg px-4 py-2.5 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all"
             />
-            <button className="hidden md:block bg-zinc-100 hover:bg-white text-zinc-900 font-semibold py-2.5 px-6 rounded-lg transition-colors whitespace-nowrap">
+            <button 
+              onClick={handleProcessVideo}
+              disabled={isLoading || !url}
+              className="hidden md:flex items-center gap-2 bg-zinc-100 hover:bg-white disabled:bg-zinc-400 text-zinc-900 font-semibold py-2.5 px-6 rounded-lg transition-colors whitespace-nowrap"
+            >
+              {isLoading && <Loader2 className="animate-spin" size={18} />}
               Process Video
             </button>
           </div>
         </div>
-        <button className="w-full md:hidden bg-zinc-100 hover:bg-white text-zinc-900 font-semibold py-2.5 px-6 rounded-lg transition-colors whitespace-nowrap">
+        <button 
+          onClick={handleProcessVideo}
+          disabled={isLoading || !url}
+          className="w-full md:hidden flex items-center justify-center gap-2 bg-zinc-100 hover:bg-white disabled:bg-zinc-400 text-zinc-900 font-semibold py-2.5 px-6 rounded-lg transition-colors whitespace-nowrap"
+        >
+          {isLoading && <Loader2 className="animate-spin" size={18} />}
           Process Video
         </button>
       </section>
 
       {/* Pipeline Status Section */}
       <section>
-        <PipelineStatus />
+        <PipelineStatus activeVideoIds={activeVideoIds} />
       </section>
 
     </main>
