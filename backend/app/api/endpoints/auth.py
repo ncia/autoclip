@@ -26,7 +26,7 @@ def youtube_callback(account_id: str, code: str, db: Session = Depends(get_db)):
         
     account.youtube_refresh_token = f"real_yt_token_for_{code}"
     db.commit()
-    return RedirectResponse(url=f"{FRONTEND_URL}/automations?auth=youtube_success")
+    return RedirectResponse(url=f"{FRONTEND_URL}/accounts?auth=youtube_success")
 
 # --- TikTok OAuth ---
 @router.get("/tiktok/login")
@@ -40,7 +40,7 @@ def tiktok_callback(account_id: str, code: str, db: Session = Depends(get_db)):
     if account:
         account.tiktok_access_token = f"real_tk_token_for_{code}"
         db.commit()
-    return RedirectResponse(url=f"{FRONTEND_URL}/automations?auth=tiktok_success")
+    return RedirectResponse(url=f"{FRONTEND_URL}/accounts?auth=tiktok_success")
 
 # --- Instagram OAuth ---
 @router.get("/instagram/login")
@@ -54,4 +54,4 @@ def instagram_callback(account_id: str, code: str, db: Session = Depends(get_db)
     if account:
         account.instagram_access_token = f"real_ig_token_for_{code}"
         db.commit()
-    return RedirectResponse(url=f"{FRONTEND_URL}/automations?auth=instagram_success")
+    return RedirectResponse(url=f"{FRONTEND_URL}/accounts?auth=instagram_success")

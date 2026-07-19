@@ -5,7 +5,7 @@ from typing import List, Optional
 from datetime import datetime
 from app.core.database import get_db
 from app.models.account import SocialAccount, Persona
-from app.models.video import SourceVideo, Clip, ProcessStatus
+import uuid
 
 router = APIRouter()
 
@@ -27,18 +27,15 @@ class AccountResponse(BaseModel):
     has_tiktok_token: bool
     has_instagram_token: bool
 
+class AccountCreate(BaseModel):
+    id: str
+    email: str
+    platforms: str
+
 @router.get("/", response_model=List[AccountResponse])
 def get_accounts(db: Session = Depends(get_db)):
     accounts = db.query(SocialAccount).all()
-    if not accounts:
-        mock_acc = SocialAccount(id="gaming_ch", email="mock@youtube.com", status="Active", platforms="YouTube,TikTok")
-        mock_persona = Persona(account_id="gaming_ch", prompt="Make it exciting gaming clips", quota=5, template="Gaming Bold")
-        db.add(mock_acc)
-        db.add(mock_persona)
-        db.commit()
-        db.refresh(mock_acc)
-        accounts = [mock_acc]
-
+    
     result = []
     for acc in accounts:
         persona = acc.persona
@@ -48,17 +45,11 @@ def get_accounts(db: Session = Depends(get_db)):
             db.commit()
             db.refresh(persona)
             
-        mock_clips = [
-            { "id": 1, "title": "Elden Ring Secret Boss Melted!", "status": "Done", "platforms": { "youtube": "Uploaded", "tiktok": "Uploaded", "instagram": "Pending" } },
-            { "id": 2, "title": "Best FPS Setup 2026", "status": "Done", "platforms": { "youtube": "Pending", "tiktok": "Pending", "instagram": "Pending" } },
-            { "id": 3, "title": "No Hit Run Highlight", "status": "Rendering", "platforms": { "youtube": "N/A", "tiktok": "N/A", "instagram": "N/A" } }
-        ]
-        
-        platforms_list = acc.platforms.split(",") if acc.platforms else ["YouTube"]
+        platforms_list = acc.platforms.split(",") if acc.platforms else []
         
         result.append(AccountResponse(
             id=acc.id,
-            email=acc.email if acc.email else "user@example.com",
+            email=acc.email if acc.email else "",
             status=acc.status,
             platforms=platforms_list,
             persona=PersonaBase(
@@ -68,18 +59,59 @@ def get_accounts(db: Session = Depends(get_db)):
                 target_channels=persona.target_channels,
                 ai_generation_enabled=persona.ai_generation_enabled
             ),
-            clips=mock_clips,
+            clips=[], # Empty for now, in reality fetch from DB
             has_youtube_token=bool(acc.youtube_refresh_token),
             has_tiktok_token=bool(acc.tiktok_access_token),
             has_instagram_token=bool(acc.instagram_access_token)
         ))
     return result
 
+@router.post("/", response_model=AccountResponse)
+def create_account(account_in: AccountCreate, db: Session = Depends(get_db)):
+    # Check if ID already exists
+    existing = db.query(SocialAccount).filter(SocialAccount.id == account_in.id).first()
+    if existing:
+        raise HTTPException(status_code=400, detail="Account with this ID/Handle already exists.")
+
+    new_account = SocialAccount(
+        id=account_in.id,
+        email=account_in.email,
+        status="Pending",
+        platforms=account_in.platforms
+    )
+    db.add(new_account)
+    db.commit()
+    db.refresh(new_account)
+
+    # Create default persona
+    new_persona = Persona(account_id=new_account.id, prompt="Generate engaging viral content", quota=3, template="Standard")
+    db.add(new_persona)
+    db.commit()
+    
+    platforms_list = new_account.platforms.split(",") if new_account.platforms else []
+    
+    return AccountResponse(
+        id=new_account.id,
+        email=new_account.email,
+        status=new_account.status,
+        platforms=platforms_list,
+        persona=PersonaBase(
+            prompt=new_persona.prompt,
+            quota=new_persona.quota,
+            template=new_persona.template,
+            target_channels=new_persona.target_channels,
+            ai_generation_enabled=new_persona.ai_generation_enabled
+        ),
+        clips=[],
+        has_youtube_token=False,
+        has_tiktok_token=False,
+        has_instagram_token=False
+    )
+
 @router.post("/{account_id}/persona", response_model=PersonaBase)
 def update_persona(account_id: str, persona_data: PersonaBase, db: Session = Depends(get_db)):
     persona = db.query(Persona).filter(Persona.account_id == account_id).first()
     if not persona:
-        # Check if account exists
         acc = db.query(SocialAccount).filter(SocialAccount.id == account_id).first()
         if not acc:
             raise HTTPException(status_code=404, detail="Account not found")

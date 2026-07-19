@@ -333,7 +333,7 @@ export default function AutomationsPage() {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-zinc-800/50">
-                          {account.clips.map((clip, index) => (
+                          {account.clips.map((clip: any, index: number) => (
                             <tr key={clip.id} className="hover:bg-zinc-800/20 transition-colors group">
                               <td className="p-4 text-center">
                                 <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-xs font-bold text-zinc-500 mx-auto">

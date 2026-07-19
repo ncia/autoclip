@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Cpu, Cloud, Database, Globe, Share2, Save, Key, CheckCircle2, Eye, EyeOff } from 'lucide-react';
 
 type TabType = 'ai' | 'worker' | 'sourcing' | 'hosting' | 'social';
@@ -8,9 +8,76 @@ type TabType = 'ai' | 'worker' | 'sourcing' | 'hosting' | 'social';
 export default function ApiKeysPage() {
   const [activeTab, setActiveTab] = useState<TabType>('ai');
   const [visibleKeys, setVisibleKeys] = useState<Record<string, boolean>>({});
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [originalKeys, setOriginalKeys] = useState<Record<string, string>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<string | null>(null);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
+  useEffect(() => {
+    const fetchKeys = async () => {
+      try {
+        const res = await fetch(`${API_URL}/api/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          const loadedKeys: Record<string, string> = {};
+          if (data.settings && Array.isArray(data.settings)) {
+            data.settings.forEach((s: any) => {
+              loadedKeys[s.key] = s.value;
+            });
+          }
+          setApiKeys(loadedKeys);
+          setOriginalKeys(loadedKeys);
+        }
+      } catch (err) {
+        console.error("Failed to fetch settings", err);
+      }
+    };
+    fetchKeys();
+  }, [API_URL]);
 
   const toggleVisibility = (key: string) => {
     setVisibleKeys(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleKeyChange = (key: string, value: string) => {
+    setApiKeys(prev => ({ ...prev, [key]: value }));
+  };
+
+  const saveChanges = async () => {
+    setIsSaving(true);
+    setSaveStatus("Saving...");
+    try {
+      const changedKeys = Object.entries(apiKeys).filter(([key, value]) => value !== originalKeys[key] && value !== '********');
+      if (changedKeys.length === 0) {
+        setSaveStatus("No changes to save.");
+        setTimeout(() => setSaveStatus(null), 3000);
+        setIsSaving(false);
+        return;
+      }
+
+      const settingsArray = changedKeys.map(([key, value]) => ({ key, value }));
+      
+      const res = await fetch(`${API_URL}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: settingsArray })
+      });
+      
+      if (res.ok) {
+        setSaveStatus("Saved successfully!");
+        setOriginalKeys(prev => ({ ...prev, ...Object.fromEntries(changedKeys) }));
+        setTimeout(() => setSaveStatus(null), 3000);
+      } else {
+        setSaveStatus("Failed to save.");
+      }
+    } catch (err) {
+      console.error(err);
+      setSaveStatus("Error saving.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const tabs = [
@@ -28,6 +95,8 @@ export default function ApiKeysPage() {
         <input 
           type={type === 'password' && !visibleKeys[id] ? 'password' : 'text'} 
           placeholder={placeholder}
+          value={apiKeys[id] || ''}
+          onChange={(e) => handleKeyChange(id, e.target.value)}
           className="w-full bg-[#09090b] border border-[#27272a] rounded-lg px-4 py-2.5 pr-10 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all font-mono text-sm"
         />
         {type === 'password' && (
@@ -56,7 +125,7 @@ export default function ApiKeysPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 text-sm text-emerald-400 font-medium px-4 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
-          <CheckCircle2 size={16} /> Keys auto-save on change
+          <CheckCircle2 size={16} /> Data masked for security
         </div>
       </header>
 
@@ -87,11 +156,11 @@ export default function ApiKeysPage() {
 
         {/* Tab Content */}
         <div className="flex-1">
-          <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-6 min-h-[500px]">
+          <div className="bg-[#18181b] border border-[#27272a] rounded-2xl p-6 min-h-[500px] flex flex-col">
             
             {/* AI & Intelligence */}
             {activeTab === 'ai' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
                 <div className="border-b border-[#27272a] pb-4">
                   <h2 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
                     <Cpu className="text-blue-400" /> AI & Intelligence
@@ -99,15 +168,15 @@ export default function ApiKeysPage() {
                   <p className="text-sm text-zinc-400 mt-1">Configure models for transcription (Whisper) and highlight extraction (GPT-4o).</p>
                 </div>
                 <div className="space-y-6">
-                  {renderInput('openai', 'OpenAI API Key', 'sk-proj-...', 'password')}
-                  {renderInput('gemini', 'Google Gemini API Key', 'AIzaSy...', 'password')}
+                  {renderInput('openai_api_key', 'OpenAI API Key', 'sk-proj-...', 'password')}
+                  {renderInput('gemini_api_key', 'Google Gemini API Key', 'AIzaSy...', 'password')}
                 </div>
               </div>
             )}
 
             {/* Video Processing */}
             {activeTab === 'worker' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
                 <div className="border-b border-[#27272a] pb-4">
                   <h2 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
                     <Cloud className="text-purple-400" /> Video Processing
@@ -115,15 +184,15 @@ export default function ApiKeysPage() {
                   <p className="text-sm text-zinc-400 mt-1">Cloud rendering configuration for heavy FFmpeg tasks.</p>
                 </div>
                 <div className="space-y-6">
-                  {renderInput('modal_id', 'Modal API Token ID', 'ak-...', 'text')}
-                  {renderInput('modal_secret', 'Modal API Token Secret', 'as-...', 'password')}
+                  {renderInput('modal_token_id', 'Modal API Token ID', 'ak-...', 'password')}
+                  {renderInput('modal_token_secret', 'Modal API Token Secret', 'as-...', 'password')}
                 </div>
               </div>
             )}
 
             {/* Sourcing & Data */}
             {activeTab === 'sourcing' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
                 <div className="border-b border-[#27272a] pb-4">
                   <h2 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
                     <Database className="text-emerald-400" /> Sourcing & Data
@@ -131,15 +200,15 @@ export default function ApiKeysPage() {
                   <p className="text-sm text-zinc-400 mt-1">APIs to discover viral videos and bypass scraping restrictions.</p>
                 </div>
                 <div className="space-y-6">
-                  {renderInput('yt_data', 'YouTube Data API v3 Key', 'AIzaSy...', 'password')}
-                  {renderInput('proxy', 'Proxy / Scraping API Key (Optional)', 'BrightData or similar key...', 'password')}
+                  {renderInput('youtube_api_key', 'YouTube Data API v3 Key', 'AIzaSy...', 'password')}
+                  {renderInput('proxy_api_key', 'Proxy / Scraping API Key (Optional)', 'BrightData or similar key...', 'password')}
                 </div>
               </div>
             )}
 
             {/* Infrastructure */}
             {activeTab === 'hosting' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
                 <div className="border-b border-[#27272a] pb-4">
                   <h2 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
                     <Globe className="text-sky-400" /> Infrastructure
@@ -147,10 +216,10 @@ export default function ApiKeysPage() {
                   <p className="text-sm text-zinc-400 mt-1">Manage server auto-scaling and domain configuration.</p>
                 </div>
                 <div className="space-y-6">
-                  {renderInput('vultr', 'Vultr API Key', 'Enter Vultr API Key...', 'password')}
+                  {renderInput('vultr_api_key', 'Vultr API Key', 'Enter Vultr API Key...', 'password')}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {renderInput('domain', 'Primary Domain', 'e.g. autoclip.io', 'text')}
-                    {renderInput('subdomain', 'Host / Subdomain', 'e.g. api, app, or @', 'text')}
+                    {renderInput('primary_domain', 'Primary Domain', 'e.g. autoclip.io', 'text')}
+                    {renderInput('host_subdomain', 'Host / Subdomain', 'e.g. api, app, or @', 'text')}
                   </div>
                 </div>
               </div>
@@ -158,7 +227,7 @@ export default function ApiKeysPage() {
 
             {/* Social Publishing */}
             {activeTab === 'social' && (
-              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 flex-1">
                 <div className="border-b border-[#27272a] pb-4">
                   <h2 className="text-xl font-bold text-zinc-50 flex items-center gap-2">
                     <Share2 className="text-pink-400" /> Social Publishing App Credentials
@@ -178,7 +247,7 @@ export default function ApiKeysPage() {
                   <div className="bg-[#09090b] p-5 rounded-xl border border-[#27272a]">
                     <h3 className="text-md font-semibold text-zinc-200 mb-4">TikTok For Developers</h3>
                     <div className="space-y-4">
-                      {renderInput('tt_client_key', 'Client Key', 'aw...', 'text')}
+                      {renderInput('tt_client_key', 'Client Key', 'aw...', 'password')}
                       {renderInput('tt_client_secret', 'Client Secret', '...', 'password')}
                     </div>
                   </div>
@@ -194,11 +263,22 @@ export default function ApiKeysPage() {
               </div>
             )}
 
-            <div className="mt-8 pt-6 border-t border-[#27272a] flex justify-end">
-              <button className="bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 px-6 rounded-lg flex items-center gap-2 transition-colors">
-                <Save size={18} /> Save Changes
+            {/* Sticky Save Button */}
+            <div className="mt-8 pt-6 border-t border-[#27272a] flex justify-end items-center gap-4">
+              {saveStatus && (
+                <span className={`text-sm ${saveStatus.includes('success') ? 'text-emerald-400' : 'text-zinc-400'}`}>
+                  {saveStatus}
+                </span>
+              )}
+              <button 
+                onClick={saveChanges}
+                disabled={isSaving}
+                className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-medium py-2 px-6 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <Save size={18} /> {isSaving ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
+            
           </div>
         </div>
       </div>
